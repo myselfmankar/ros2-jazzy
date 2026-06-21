@@ -1,6 +1,5 @@
 import json
 import os
-import sqlite3
 import time
 import rclpy
 from rclpy.node import Node
@@ -16,23 +15,18 @@ import paho.mqtt.client as mqtt
 class MqttBridgeNode(Node):
     def __init__(self):
         super().__init__('mqtt_bridge_node')
-        self.get_logger().info("Initializing ROS2-MQTT & SQLite Bridge Node...")
+        self.get_logger().info("Initializing ROS2-MQTT Bridge Node...")
 
         # Get configurations from parameters (or use defaults)
         self.declare_parameter('mqtt_host', 'mqtt-broker')
         self.declare_parameter('mqtt_port', 1883)
-        self.declare_parameter('db_path', '/data/local_robot.db')
         self.declare_parameter('device_id', 'device-test')
 
         self.mqtt_host = self.get_parameter('mqtt_host').get_parameter_value().string_value
         self.mqtt_port = self.get_parameter('mqtt_port').get_parameter_value().integer_value
-        self.db_path = self.get_parameter('db_path').get_parameter_value().string_value
         self.device_id = self.get_parameter('device_id').get_parameter_value().string_value
 
         self.mqtt_prefix = f"omega/{self.device_id}"
-
-        # Initialize SQLite DB (make sure table schema exists)
-        self.init_sqlite()
 
         # Initialize MQTT Client
         self.mqtt_client = mqtt.Client()
@@ -58,56 +52,6 @@ class MqttBridgeNode(Node):
         # Control state tracking for incremental speed changes
         self.target_speed = 0.0
         self.target_yaw_rate = 0.0
-
-    def init_sqlite(self):
-        self.get_logger().info(f"Using SQLite database file: {self.db_path}")
-        # Run db_init schema creation just in case
-        db_dir = os.path.dirname(self.db_path)
-        if db_dir and not os.path.exists(db_dir):
-            os.makedirs(db_dir, exist_ok=True)
-        try:
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
-            cursor.execute("""
-            CREATE TABLE IF NOT EXISTS telemetry_gps (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                latitude REAL NOT NULL,
-                longitude REAL NOT NULL,
-                altitude REAL NOT NULL,
-                status INTEGER NOT NULL,
-                timestamp TEXT NOT NULL
-            )""")
-            cursor.execute("""
-            CREATE TABLE IF NOT EXISTS telemetry_odom (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                linear_speed REAL NOT NULL,
-                angular_speed REAL NOT NULL,
-                direction REAL NOT NULL,
-                x REAL NOT NULL,
-                y REAL NOT NULL,
-                z REAL NOT NULL,
-                timestamp TEXT NOT NULL
-            )""")
-            cursor.execute("""
-            CREATE TABLE IF NOT EXISTS diagnostics_log (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                level TEXT NOT NULL,
-                message TEXT NOT NULL,
-                hardware_id TEXT NOT NULL,
-                timestamp TEXT NOT NULL
-            )""")
-            cursor.execute("""
-            CREATE TABLE IF NOT EXISTS system_logs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                level TEXT NOT NULL,
-                logger_name TEXT NOT NULL,
-                message TEXT NOT NULL,
-                timestamp TEXT NOT NULL
-            )""")
-            conn.commit()
-            conn.close()
-        except Exception as e:
-            self.get_logger().error(f"SQLite initialization failed: {str(e)}")
 
     def on_mqtt_connect(self, client, userdata, flags, rc):
         if rc == 0:
@@ -161,16 +105,6 @@ class MqttBridgeNode(Node):
         except Exception as e:
             self.get_logger().error(f"Error handling MQTT control message: {str(e)}")
 
-    def save_to_db(self, query, params):
-        try:
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
-            cursor.execute(query, params)
-            conn.commit()
-            conn.close()
-        except Exception as e:
-            self.get_logger().error(f"SQLite database write error: {str(e)}")
-
     def publish_mqtt(self, topic, data):
         if self.mqtt_client.is_connected():
             try:
@@ -189,13 +123,7 @@ class MqttBridgeNode(Node):
             'timestamp': timestamp
         }
 
-        # 1. Save to SQLite
-        self.save_to_db(
-            "INSERT INTO telemetry_gps (latitude, longitude, altitude, status, timestamp) VALUES (?, ?, ?, ?, ?)",
-            (msg.latitude, msg.longitude, msg.altitude, int(msg.status.status), timestamp)
-        )
-
-        # 2. Publish to MQTT
+        # Publish to MQTT
         self.publish_mqtt(f"{self.mqtt_prefix}/telemetry/gps", payload)
 
     def odom_callback(self, msg):
@@ -206,11 +134,6 @@ class MqttBridgeNode(Node):
         angular_speed = msg.twist.twist.angular.z
         
         q = msg.pose.pose.orientation
-        # yaw (z-axis rotation) from quaternion
-        siny_cosp = 2 * (q.w * q.z + q.x * q.y)
-        cosy_cosp = 1 - 2 * (q.y * q.y + q.z * q.z)
-        direction = math_yaw = float(round(abs(360 + (360 * (math.atan2(siny_cosp, cosy_cosp) / (2 * math.pi)))) % 360, 2)) if 'math' in globals() else 0.0
-        # Wait, if math is not imported, let's use a simpler yaw estimate or import math
         import math
         siny_cosp = 2 * (q.w * q.z + q.x * q.y)
         cosy_cosp = 1 - 2 * (q.y * q.y + q.z * q.z)
@@ -226,13 +149,7 @@ class MqttBridgeNode(Node):
             'timestamp': timestamp
         }
 
-        # 1. Save to SQLite
-        self.save_to_db(
-            "INSERT INTO telemetry_odom (linear_speed, angular_speed, direction, x, y, z, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (linear_speed, angular_speed, direction, msg.pose.pose.position.x, msg.pose.pose.position.y, msg.pose.pose.position.z, timestamp)
-        )
-
-        # 2. Publish to MQTT
+        # Publish to MQTT
         self.publish_mqtt(f"{self.mqtt_prefix}/telemetry/odom", payload)
 
     def diagnostics_callback(self, msg):
@@ -251,13 +168,7 @@ class MqttBridgeNode(Node):
                 'timestamp': timestamp
             }
 
-            # 1. Save to SQLite
-            self.save_to_db(
-                "INSERT INTO diagnostics_log (level, message, hardware_id, timestamp) VALUES (?, ?, ?, ?)",
-                (level_str, status.message, status.hardware_id, timestamp)
-            )
-
-            # 2. Publish to MQTT
+            # Publish to MQTT
             self.publish_mqtt(f"{self.mqtt_prefix}/diagnostics", payload)
 
     def rosout_callback(self, msg):
@@ -277,13 +188,7 @@ class MqttBridgeNode(Node):
             'timestamp': timestamp
         }
 
-        # 1. Save to SQLite
-        self.save_to_db(
-            "INSERT INTO system_logs (level, logger_name, message, timestamp) VALUES (?, ?, ?, ?)",
-            (level_str, msg.name, msg.msg, timestamp)
-        )
-
-        # 2. Publish to MQTT
+        # Publish to MQTT
         self.publish_mqtt(f"{self.mqtt_prefix}/logs", payload)
 
 def main(args=None):
