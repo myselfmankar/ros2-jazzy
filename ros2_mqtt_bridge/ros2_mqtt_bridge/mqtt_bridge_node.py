@@ -9,6 +9,7 @@ from nav_msgs.msg import Odometry
 from diagnostic_msgs.msg import DiagnosticArray
 from rcl_interfaces.msg import Log as RosLog
 from geometry_msgs.msg import Twist, Vector3
+from std_msgs.msg import Bool
 
 import paho.mqtt.client as mqtt
 
@@ -42,6 +43,7 @@ class MqttBridgeNode(Node):
 
         # ROS2 Publishers
         self.cmd_vel_pub = self.create_publisher(Twist, '/cmd_vel', 10)
+        self.session_active_pub = self.create_publisher(Bool, '/session/active', 10)
 
         # ROS2 Subscriptions
         self.create_subscription(NavSatFix, '/gps/fix', self.gps_callback, 10)
@@ -58,14 +60,25 @@ class MqttBridgeNode(Node):
             self.get_logger().info("Successfully connected to MQTT broker.")
             # Subscribe to command topics
             self.mqtt_client.subscribe(f"{self.mqtt_prefix}/velocity/control")
+            self.mqtt_client.subscribe(f"{self.mqtt_prefix}/session/active")
             self.mqtt_client.subscribe("robot/control/cmd")
-            self.get_logger().info(f"Subscribed to MQTT control topics: {self.mqtt_prefix}/velocity/control and robot/control/cmd")
+            self.get_logger().info(f"Subscribed to MQTT control topics: {self.mqtt_prefix}/velocity/control, {self.mqtt_prefix}/session/active, and robot/control/cmd")
         else:
             self.get_logger().error(f"MQTT connection failed with code {rc}")
 
     def on_mqtt_message(self, client, userdata, msg):
         try:
             payload = json.loads(msg.payload.decode())
+            
+            # Handle session/active topic
+            if msg.topic == f"{self.mqtt_prefix}/session/active":
+                active = payload.get('active', False)
+                self.get_logger().info(f"Received session active signal from MQTT: {active}")
+                bool_msg = Bool()
+                bool_msg.data = bool(active)
+                self.session_active_pub.publish(bool_msg)
+                return
+
             self.get_logger().info(f"Received MQTT command: {payload}")
             
             twist = Twist()

@@ -7,6 +7,7 @@ from sensor_msgs.msg import NavSatFix, NavSatStatus
 from nav_msgs.msg import Odometry
 from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus, KeyValue
 from geometry_msgs.msg import Point, Pose, Quaternion, Twist, Vector3
+from std_msgs.msg import Bool
 
 class MockRobotSim(Node):
     def __init__(self):
@@ -39,13 +40,15 @@ class MockRobotSim(Node):
         # Simulation states
         self.current_segment = 0
         self.segment_progress = 0.0  # 0.0 to 1.0
-        self.speed = 1.0  # m/s (can be adjusted via /cmd_vel)
+        self.current_speed = 0.0  # m/s (starts at 0)
+        self.target_speed = 0.0   # m/s (set via cmd_vel)
         self.alt = 215.0
         self.lat, self.lon = self.route[0]
         self.theta = 0.0
         self.x = 0.0
         self.y = 0.0
         self.battery = 100.0
+        self.active = False  # Simulation inactive until session starts
 
         # Subscribe to /cmd_vel for speed changes
         self.cmd_vel_sub = self.create_subscription(
@@ -55,22 +58,49 @@ class MockRobotSim(Node):
             10
         )
 
+        # Subscribe to /session/active to toggle active telemetry state
+        self.session_sub = self.create_subscription(
+            Bool,
+            '/session/active',
+            self.session_callback,
+            10
+        )
+
         # Timer (1 Hz)
         self.timer = self.create_timer(1.0, self.timer_callback)
 
     def cmd_vel_callback(self, msg):
-        self.speed = msg.linear.x
-        self.get_logger().info(f"Speed set to: {self.speed:.2f} m/s")
+        self.target_speed = msg.linear.x
+        self.get_logger().info(f"Target speed set to: {self.target_speed:.2f} m/s")
+
+    def session_callback(self, msg):
+        self.active = msg.data
+        if self.active:
+            self.get_logger().info("Session activated. Starting telemetry stream.")
+        else:
+            self.get_logger().info("Session deactivated. Pausing telemetry stream and stopping.")
+            self.target_speed = 0.0
+            self.current_speed = 0.0
 
     def timer_callback(self):
+        # Do not compute physics or publish telemetry if inactive
+        if not self.active:
+            return
+
         dt = 1.0
         
-        # 1. Update simulation physics along the route
-        if self.speed != 0.0 and len(self.segments) > 0:
+        # 1. Physics ramping logic
+        if self.current_speed < self.target_speed:
+            self.current_speed = min(self.target_speed, self.current_speed + 0.5)
+        elif self.current_speed > self.target_speed:
+            self.current_speed = max(self.target_speed, self.current_speed - 1.0)
+        
+        # 2. Update simulation physics along the route
+        if self.current_speed != 0.0 and len(self.segments) > 0:
             dx, dy, length = self.segments[self.current_segment]
             
             # Progress step
-            progress_step = (self.speed * dt) / length
+            progress_step = (self.current_speed * dt) / length
             self.segment_progress += progress_step
             
             # Check bounds and segment transition
@@ -124,7 +154,7 @@ class MockRobotSim(Node):
         odom_msg.pose.pose.orientation = Quaternion(x=0.0, y=0.0, z=sy, w=cy)
         
         # Velocity
-        odom_msg.twist.twist.linear = Vector3(x=self.speed, y=0.0, z=0.0)
+        odom_msg.twist.twist.linear = Vector3(x=self.current_speed, y=0.0, z=0.0)
         odom_msg.twist.twist.angular = Vector3(x=0.0, y=0.0, z=0.0)
         self.odom_pub.publish(odom_msg)
 
@@ -167,7 +197,7 @@ class MockRobotSim(Node):
 
         # Periodic logging
         if random.random() < 0.15:
-            self.get_logger().info(f"Simulating Metro route. Pos: ({self.lat:.5f}, {self.lon:.5f}), Speed: {self.speed:.2f} m/s")
+            self.get_logger().info(f"Simulating Metro route. Pos: ({self.lat:.5f}, {self.lon:.5f}), Speed: {self.current_speed:.2f} m/s")
 
 def main(args=None):
     rclpy.init(args=args)
