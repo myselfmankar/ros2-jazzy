@@ -92,9 +92,20 @@ def main():
     signal.signal(signal.SIGINT, cleanup)
     signal.signal(signal.SIGTERM, cleanup)
 
-    # 2. Start WebRTC Streamer Node directly as a Python script
+    # 2. Wait 2 seconds for topics to publish, then verify topic info
+    print("\nVerifying ROS2 topic info...")
+    time.sleep(2)
+    for topic in ["/astra2_cam/color/image_raw", "/cam_eth/color/image_raw", "/cam_usb/color/image_raw"]:
+        try:
+            res = subprocess.run(["ros2", "topic", "info", topic], capture_output=True, text=True, timeout=3)
+            print(f"\nTopic {topic} Info:")
+            print(res.stdout.strip())
+        except Exception as e:
+            print(f"Failed to query info for {topic}: {e}")
+
+    # 3. Start WebRTC Streamer Node directly as a Python script
     node_script = os.path.join("ros2_video_streamer", "ros2_video_streamer", "streamer_node.py")
-    print(f"\n2. Launching WebRTC Streamer Node directly: {node_script}...")
+    print(f"\n3. Launching WebRTC Streamer Node directly: {node_script}...")
     
     try:
         # Run node directly using the current python executable (preserves virtualenv/uv environment)
