@@ -3,6 +3,7 @@ import subprocess
 import sys
 import signal
 import re
+import time
 
 def find_largest_recording_run():
     """Scans recordings folders to find the timestamp with the largest combined bag size."""
