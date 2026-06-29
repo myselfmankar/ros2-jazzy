@@ -66,10 +66,10 @@ def main():
             
     print("All 3 camera bags verified successfully!")
 
-    # 1. Play ROS2 bags in background
-    print("\n1. Replaying ROS2 bags in background...")
+    # 1. Play ROS2 bags in background (--loop keeps replaying until Ctrl+C)
+    print("\n1. Replaying ROS2 bags in background (looped)...")
     bag_proc = subprocess.Popen(
-        ["ros2", "bag", "play", bag_front, bag_left, bag_right],
+        ["ros2", "bag", "play", "--loop", bag_front, bag_left, bag_right],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL
     )
