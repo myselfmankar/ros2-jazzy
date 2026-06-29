@@ -3,3 +3,4 @@ livekit-api
 livekit
 requests
 opencv-python
+numpy<2
