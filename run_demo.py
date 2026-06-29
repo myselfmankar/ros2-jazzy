@@ -90,7 +90,25 @@ def main():
 
     # 2. Start WebRTC Streamer Node
     print("\n2. Sourcing workspace and starting WebRTC Streamer Node...")
-    run_streamer_cmd = "source install/setup.bash && ros2 run ros2_video_streamer streamer"
+    
+    # Locate setup.bash dynamically
+    setup_path = None
+    possible_paths = [
+        "install/setup.bash",
+        "../install/setup.bash",
+        "../../install/setup.bash"
+    ]
+    for p in possible_paths:
+        if os.path.exists(p):
+            setup_path = os.path.abspath(p)
+            break
+
+    if setup_path:
+        print(f"Found workspace setup.bash at: {setup_path}")
+        run_streamer_cmd = f"source {setup_path} && ros2 run ros2_video_streamer streamer"
+    else:
+        print("Warning: local install/setup.bash not found. Running directly (assuming environment is already sourced).")
+        run_streamer_cmd = "ros2 run ros2_video_streamer streamer"
     
     try:
         subprocess.run(run_streamer_cmd, shell=True, executable="/bin/bash")
