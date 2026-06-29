@@ -51,10 +51,7 @@ def main():
     timestamp = detected_timestamp if detected_timestamp else "20260616_182225"
     
     print("\n---------------------------------------------")
-    print(f"Selected largest recording run: {timestamp}")
-    user_input = input("Press Enter to use this default, or type another timestamp from mcap_loc.txt: ").strip()
-    if user_input:
-        timestamp = user_input
+    print(f"Automatically selected largest recording run: {timestamp}")
 
     # Resolve bag files
     bag_front = f"/home/eric/baggit_composition/baggit_astra/baggit_recordings_astra/recordings_{timestamp}/front_cam/front_cam_0.mcap"
