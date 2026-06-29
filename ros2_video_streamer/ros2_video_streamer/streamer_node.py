@@ -143,7 +143,7 @@ def main(args=None):
     try:
         print(f"Attempting secure token fetch from gateway: {gateway_url}...")
         resp = requests.get(
-            f"{gateway_url}/api/rtc/token?identity=ericr-desktop&room=omega-default",
+            f"{gateway_url}/api/rtc/token?identity=ericr-desktop",
             timeout=3
         )
         if resp.status_code == 200:
