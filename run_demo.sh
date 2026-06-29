@@ -38,20 +38,20 @@ fi
 
 # Define paths to MCAP files based on selected timestamp
 BAG_FRONT="/home/eric/baggit_composition/baggit_astra/baggit_recordings_astra/recordings_${TIMESTAMP}/front_cam/front_cam_0.mcap"
-BAG_LEFT="/home/eric/baggit_composition/baggit_gemini_eth/baggit_recordings_gemini_eth/recordings_${TIMESTAMP}/left_cam/left_cam_0.mcap"
-BAG_RIGHT="/home/eric/baggit_composition/baggit_gemini_usb/baggit_recordings_gemini_usb/recordings_${TIMESTAMP}/right_cam/right_cam_0.mcap"
+BAG_DOWN_LEFT="/home/eric/baggit_composition/baggit_gemini_eth/baggit_recordings_gemini_eth/recordings_${TIMESTAMP}/left_cam/left_cam_0.mcap"
+BAG_DOWN_RIGHT="/home/eric/baggit_composition/baggit_gemini_usb/baggit_recordings_gemini_usb/recordings_${TIMESTAMP}/right_cam/right_cam_0.mcap"
 
 # Verify files exist
 if [ ! -f "$BAG_FRONT" ]; then
     echo "Error: Front camera bag not found at $BAG_FRONT"
     exit 1
 fi
-if [ ! -f "$BAG_LEFT" ]; then
-    echo "Error: Left camera bag not found at $BAG_LEFT"
+if [ ! -f "$BAG_DOWN_LEFT" ]; then
+    echo "Error: Down Left camera bag not found at $BAG_DOWN_LEFT"
     exit 1
 fi
-if [ ! -f "$BAG_RIGHT" ]; then
-    echo "Error: Right camera bag not found at $BAG_RIGHT"
+if [ ! -f "$BAG_DOWN_RIGHT" ]; then
+    echo "Error: Down Right camera bag not found at $BAG_DOWN_RIGHT"
     exit 1
 fi
 
@@ -59,7 +59,7 @@ echo "All 3 camera bags found successfully!"
 
 # 5. Play bags in background
 echo "4. Replaying ROS2 bags in background..."
-ros2 bag play "$BAG_FRONT" "$BAG_LEFT" "$BAG_RIGHT" &
+ros2 bag play "$BAG_FRONT" "$BAG_DOWN_LEFT" "$BAG_DOWN_RIGHT" &
 BAG_PID=$!
 
 # Register exit handler to kill bag player when script exits
