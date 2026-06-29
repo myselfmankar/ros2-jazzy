@@ -53,10 +53,7 @@ def find_largest_recording_run():
     return runs[0][1]
 
 def main():
-    print("=============================================")
     print("  Golain WebRTC Camera Streamer Demo Setup   ")
-    print("=============================================")
-
     # 1. Pull latest code
     print("\n1. Pulling git updates...")
     run_cmd(["git", "pull", "origin", "main"])
@@ -83,7 +80,6 @@ def main():
     
     timestamp = detected_timestamp if detected_timestamp else "20260616_182225"
     
-    print("\n---------------------------------------------")
     print(f"Selected largest recording run: {timestamp}")
     user_input = input("Press Enter to use this default, or type another timestamp from mcap_loc.txt: ").strip()
     if user_input:

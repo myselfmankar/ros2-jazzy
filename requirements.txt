@@ -1,0 +1,4 @@
+# Python dependencies for WebRTC video streamer on the robot
+livekit-api
+requests
+opencv-python
