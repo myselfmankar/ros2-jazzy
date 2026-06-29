@@ -4,6 +4,7 @@ import sys
 import time
 import signal
 import shutil
+import re
 
 def run_cmd(args, shell=False, check=True):
     try:
@@ -15,6 +16,41 @@ def run_cmd(args, shell=False, check=True):
         if check:
             sys.exit(1)
         return ""
+
+def find_largest_recording_run():
+    """Scans recordings folders to find the timestamp with the largest combined bag size."""
+    astra_dir = "/home/eric/baggit_composition/baggit_astra/baggit_recordings_astra"
+    if not os.path.exists(astra_dir):
+        return None
+
+    pattern = re.compile(r"recordings_(\d{8}_\d{6})")
+    runs = []
+    
+    # List all recordings folders
+    try:
+        for entry in os.listdir(astra_dir):
+            match = pattern.match(entry)
+            if match:
+                timestamp = match.group(1)
+                # Verify matching triplets exist
+                bag_front = f"/home/eric/baggit_composition/baggit_astra/baggit_recordings_astra/recordings_{timestamp}/front_cam/front_cam_0.mcap"
+                bag_left = f"/home/eric/baggit_composition/baggit_gemini_eth/baggit_recordings_gemini_eth/recordings_{timestamp}/left_cam/left_cam_0.mcap"
+                bag_right = f"/home/eric/baggit_composition/baggit_gemini_usb/baggit_recordings_gemini_usb/recordings_{timestamp}/right_cam/right_cam_0.mcap"
+                
+                if os.path.exists(bag_front) and os.path.exists(bag_left) and os.path.exists(bag_right):
+                    # Sum file sizes
+                    total_size = os.path.getsize(bag_front) + os.path.getsize(bag_left) + os.path.getsize(bag_right)
+                    runs.append((total_size, timestamp))
+    except Exception as e:
+        print(f"Warning: directory scan failed: {e}")
+        return None
+
+    if not runs:
+        return None
+        
+    # Sort by size descending
+    runs.sort(reverse=True)
+    return runs[0][1]
 
 def main():
     print("=============================================")
@@ -41,11 +77,15 @@ def main():
         
     run_cmd(["colcon", "build", "--packages-select", "ros2_video_streamer"])
 
-    # 4. Prompt for recording timestamp
-    timestamp = "20260616_182225"
+    # 4. Find the largest recording run as default
+    print("\nScanning recordings for the largest run...")
+    detected_timestamp = find_largest_recording_run()
+    
+    timestamp = detected_timestamp if detected_timestamp else "20260616_182225"
+    
     print("\n---------------------------------------------")
-    print(f"Default recording run: {timestamp}")
-    user_input = input("Press Enter to use default, or type another timestamp from mcap_loc.txt: ").strip()
+    print(f"Selected largest recording run: {timestamp}")
+    user_input = input("Press Enter to use this default, or type another timestamp from mcap_loc.txt: ").strip()
     if user_input:
         timestamp = user_input
 
@@ -60,7 +100,7 @@ def main():
             print(f"Error: {label} camera bag not found at {path}")
             sys.exit(1)
             
-    print("All 3 camera bags found successfully!")
+    print("All 3 camera bags verified successfully!")
 
     # 6. Play ROS2 bags in background
     print("\n4. Replaying ROS2 bags in background...")
