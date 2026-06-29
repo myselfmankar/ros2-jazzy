@@ -35,19 +35,19 @@ class Ros2VideoStreamer(Node):
         self.frame_counts = {'front_camera': 0, 'down_left': 0, 'down_right': 0}
         self.sub_front = self.create_subscription(
             Image,
-            'astra2_cam/color/image_raw',
+            '/astra2_cam/color/image_raw',
             lambda msg: self.on_image_frame('front_camera', msg),
             10
         )
         self.sub_left = self.create_subscription(
             Image,
-            'cam_eth/color/image_raw',
+            '/cam_eth/color/image_raw',
             lambda msg: self.on_image_frame('down_left', msg),
             10
         )
         self.sub_right = self.create_subscription(
             Image,
-            'cam_usb/color/image_raw',
+            '/cam_usb/color/image_raw',
             lambda msg: self.on_image_frame('down_right', msg),
             10
         )
@@ -95,6 +95,9 @@ class Ros2VideoStreamer(Node):
         self.logger.info(f"Published track '{track_name}' ({width}x{height})")
 
     def on_image_frame(self, track_name, msg):
+        if track_name == 'front_camera':
+            self.logger.info("Front camera callback triggered!")
+
         if track_name not in self.sources:
             return
 
