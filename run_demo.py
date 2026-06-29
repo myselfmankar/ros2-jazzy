@@ -88,30 +88,13 @@ def main():
     signal.signal(signal.SIGINT, cleanup)
     signal.signal(signal.SIGTERM, cleanup)
 
-    # 2. Start WebRTC Streamer Node
-    print("\n2. Sourcing workspace and starting WebRTC Streamer Node...")
-    
-    # Locate setup.bash dynamically
-    setup_path = None
-    possible_paths = [
-        "install/setup.bash",
-        "../install/setup.bash",
-        "../../install/setup.bash"
-    ]
-    for p in possible_paths:
-        if os.path.exists(p):
-            setup_path = os.path.abspath(p)
-            break
-
-    if setup_path:
-        print(f"Found workspace setup.bash at: {setup_path}")
-        run_streamer_cmd = f"source {setup_path} && ros2 run ros2_video_streamer streamer"
-    else:
-        print("Warning: local install/setup.bash not found. Running directly (assuming environment is already sourced).")
-        run_streamer_cmd = "ros2 run ros2_video_streamer streamer"
+    # 2. Start WebRTC Streamer Node directly as a Python script
+    node_script = os.path.join("ros2_video_streamer", "ros2_video_streamer", "streamer_node.py")
+    print(f"\n2. Launching WebRTC Streamer Node directly: {node_script}...")
     
     try:
-        subprocess.run(run_streamer_cmd, shell=True, executable="/bin/bash")
+        # Run node directly using the current python executable (preserves virtualenv/uv environment)
+        subprocess.run([sys.executable, node_script])
     except KeyboardInterrupt:
         pass
     finally:
