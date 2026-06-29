@@ -1,6 +1,6 @@
 import asyncio
 import sys
-from livekit import Room
+from livekit import rtc
 
 async def main():
     if len(sys.argv) < 3:
@@ -13,7 +13,7 @@ async def main():
     print(f"Connecting to: {url}")
     print(f"Token (first 20 chars): {token[:20]}...")
     
-    room = Room()
+    room = rtc.Room()
     try:
         await room.connect(url, token)
         print("SUCCESS! Connected to LiveKit Room!")

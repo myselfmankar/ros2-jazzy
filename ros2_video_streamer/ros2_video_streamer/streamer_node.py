@@ -11,7 +11,7 @@ from cv_bridge import CvBridge
 
 # Import LiveKit SDK
 try:
-    from livekit import Room, EasyVideoSource, LocalVideoTrack, VideoFrame, VideoFrameType
+    from livekit import rtc
 except ImportError as e:
     import traceback
     print("--- LiveKit Import Error Details ---")
@@ -66,7 +66,7 @@ class Ros2VideoStreamer(Node):
 
     async def _connect_room(self):
         self.logger.info(f"Connecting to LiveKit room at {self.room_url}...")
-        self.room = Room()
+        self.room = rtc.Room()
         try:
             await self.room.connect(self.room_url, self.token)
             self.logger.info("Connected to LiveKit room successfully!")
@@ -80,8 +80,8 @@ class Ros2VideoStreamer(Node):
 
     async def _setup_track(self, track_name, width, height):
         # Create EasyVideoSource for high performance frame feeding
-        source = EasyVideoSource(width=width, height=height)
-        track = LocalVideoTrack.create_video_track(track_name, source)
+        source = rtc.EasyVideoSource(width=width, height=height)
+        track = rtc.LocalVideoTrack.create_video_track(track_name, source)
         
         # Publish track to the room
         await self.room.local_participant.publish_track(track)
@@ -112,10 +112,10 @@ class Ros2VideoStreamer(Node):
             rgba_img = cv2.cvtColor(cv_img, cv2.COLOR_BGR2RGBA)
             
             # Build LiveKit VideoFrame and write to the source queue
-            frame = VideoFrame(
+            frame = rtc.VideoFrame(
                 width=width,
                 height=height,
-                type=VideoFrameType.RGBA,
+                type=rtc.VideoFrameType.RGBA,
                 data=rgba_img.tobytes()
             )
             
