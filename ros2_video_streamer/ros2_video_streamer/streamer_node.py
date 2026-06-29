@@ -12,8 +12,12 @@ from cv_bridge import CvBridge
 # Import LiveKit SDK
 try:
     from livekit import Room, EasyVideoSource, LocalVideoTrack, VideoFrame, VideoFrameType
-except ImportError:
-    print("Error: livekit package is not installed. Run 'pip install livekit' first.")
+except ImportError as e:
+    import traceback
+    print("--- LiveKit Import Error Details ---")
+    traceback.print_exc()
+    print("------------------------------------")
+    sys.exit(1)
 
 class Ros2VideoStreamer(Node):
     def __init__(self, room_url, token):
