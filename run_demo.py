@@ -66,22 +66,26 @@ def main():
             
     print("All 3 camera bags verified successfully!")
 
-    # 1. Play ROS2 bags in background (--loop keeps replaying until Ctrl+C)
-    print("\n1. Replaying ROS2 bags in background (looped)...")
-    bag_proc = subprocess.Popen(
-        ["ros2", "bag", "play", "--loop", bag_front, bag_left, bag_right],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL
-    )
+    # 1. Play each camera bag in its own background process (--loop keeps replaying until Ctrl+C)
+    print("\n1. Replaying ROS2 bags in background (looped, one player per camera)...")
+    bag_procs = [
+        subprocess.Popen(["ros2", "bag", "play", "--loop", bag_front], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL),
+        subprocess.Popen(["ros2", "bag", "play", "--loop", bag_left],  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL),
+        subprocess.Popen(["ros2", "bag", "play", "--loop", bag_right], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL),
+    ]
+    print("  - Front camera bag player started")
+    print("  - Down Left camera bag player started")
+    print("  - Down Right camera bag player started")
 
-    # Cleanup callback to stop bag player on exit
+    # Cleanup callback to stop all bag players on exit
     def cleanup(signum, frame):
-        print("\nStopping background bag player...")
-        bag_proc.terminate()
-        try:
-            bag_proc.wait(timeout=2)
-        except subprocess.TimeoutExpired:
-            bag_proc.kill()
+        print("\nStopping all background bag players...")
+        for proc in bag_procs:
+            proc.terminate()
+            try:
+                proc.wait(timeout=2)
+            except subprocess.TimeoutExpired:
+                proc.kill()
         sys.exit(0)
 
     # Register exit signals
