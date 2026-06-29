@@ -32,6 +32,7 @@ class Ros2VideoStreamer(Node):
         self.logger.info("Initializing ROS2 Video Streamer for LiveKit...")
 
         # Subscribe to replayed ROS2 bag image topics
+        self.frame_counts = {'front_camera': 0, 'down_left': 0, 'down_right': 0}
         self.sub_front = self.create_subscription(
             Image,
             'astra2_cam/color/image_raw',
@@ -96,6 +97,10 @@ class Ros2VideoStreamer(Node):
     def on_image_frame(self, track_name, msg):
         if track_name not in self.sources:
             return
+
+        self.frame_counts[track_name] += 1
+        if self.frame_counts[track_name] % 30 == 0:
+            self.logger.info(f"Received and pushed 30 frames for track '{track_name}' (Total: {self.frame_counts[track_name]})")
 
         try:
             # Convert ROS2 image message to OpenCV BGR frame
