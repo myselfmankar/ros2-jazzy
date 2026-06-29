@@ -99,8 +99,6 @@ class Ros2VideoStreamer(Node):
             return
 
         self.frame_counts[track_name] += 1
-        if self.frame_counts[track_name] % 30 == 0:
-            self.logger.info(f"Received and pushed 30 frames for track '{track_name}' (Total: {self.frame_counts[track_name]})")
 
         try:
             # Convert ROS2 image message to OpenCV BGR frame
