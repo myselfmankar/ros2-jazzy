@@ -9,7 +9,7 @@ from nav_msgs.msg import Odometry
 from diagnostic_msgs.msg import DiagnosticArray
 from rcl_interfaces.msg import Log as RosLog
 from geometry_msgs.msg import Twist, Vector3
-from std_msgs.msg import Bool
+from std_msgs.msg import Bool, String
 
 import paho.mqtt.client as mqtt
 
@@ -44,6 +44,8 @@ class MqttBridgeNode(Node):
         # ROS2 Publishers
         self.cmd_vel_pub = self.create_publisher(Twist, '/cmd_vel', 10)
         self.session_active_pub = self.create_publisher(Bool, '/session/active', 10)
+        self.video_enable_pub = self.create_publisher(Bool, '/video_stream/enable', 10)
+        self.video_select_pub = self.create_publisher(String, '/video_stream/select', 10)
 
         # ROS2 Subscriptions
         self.create_subscription(NavSatFix, '/gps/fix', self.gps_callback, 10)
@@ -85,6 +87,27 @@ class MqttBridgeNode(Node):
             action = payload.get('action')
 
             if action:
+                # Video stream bandwidth control actions
+                if action in ('STREAM_STOP', 'STREAM_PAUSE', 'STREAM_OFF', 'DISABLE_STREAM'):
+                    bool_msg = Bool()
+                    bool_msg.data = False
+                    self.video_enable_pub.publish(bool_msg)
+                    self.get_logger().info("Video stream publishing DISABLED (Bandwidth saver active)")
+                    return
+                elif action in ('STREAM_START', 'STREAM_RESUME', 'STREAM_ON', 'ENABLE_STREAM'):
+                    bool_msg = Bool()
+                    bool_msg.data = True
+                    self.video_enable_pub.publish(bool_msg)
+                    self.get_logger().info("Video stream publishing ENABLED")
+                    return
+                elif action.startswith(('SELECT_CAMERA:', 'CAM_SELECT:', 'SELECT_CAM:')):
+                    cam_name = action.split(':', 1)[1].strip()
+                    str_msg = String()
+                    str_msg.data = cam_name
+                    self.video_select_pub.publish(str_msg)
+                    self.get_logger().info(f"Video camera source switched to: {cam_name}")
+                    return
+
                 # Handle incremental actions from UI buttons
                 if action == 'FORWARD':
                     self.target_speed = min(2.0, self.target_speed + 0.1)

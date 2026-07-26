@@ -15,6 +15,8 @@ def init_db(db_path):
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS telemetry_gps (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        inspection_id TEXT,
+        operator_id TEXT,
         latitude REAL NOT NULL,
         longitude REAL NOT NULL,
         altitude REAL NOT NULL,
@@ -25,6 +27,8 @@ def init_db(db_path):
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS telemetry_odom (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        inspection_id TEXT,
+        operator_id TEXT,
         linear_speed REAL NOT NULL,
         angular_speed REAL NOT NULL,
         direction REAL NOT NULL,
@@ -37,6 +41,8 @@ def init_db(db_path):
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS diagnostics_log (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        inspection_id TEXT,
+        operator_id TEXT,
         level TEXT NOT NULL,
         message TEXT NOT NULL,
         hardware_id TEXT NOT NULL,
@@ -46,6 +52,8 @@ def init_db(db_path):
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS system_logs (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        inspection_id TEXT,
+        operator_id TEXT,
         level TEXT NOT NULL,
         logger_name TEXT NOT NULL,
         message TEXT NOT NULL,

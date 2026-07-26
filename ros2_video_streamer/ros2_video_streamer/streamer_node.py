@@ -1,4 +1,5 @@
 import asyncio
+import os
 import sys
 import threading
 import requests
@@ -7,6 +8,7 @@ import cv2
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Image
+from std_msgs.msg import Bool, String
 from cv_bridge import CvBridge
 
 # Import LiveKit SDK (v1.5.x)
@@ -27,6 +29,8 @@ class Ros2VideoStreamer(Node):
         self.room_url = room_url
         self.token = token
         self.sources = {}  # track_name -> rtc.VideoSource
+        self.streaming_enabled = True  # Bandwidth saver state flag
+        self.active_camera = 'front_camera' # Only 1 camera active at a time to save bandwidth
 
         self.logger = self.get_logger()
         self.logger.info("Initializing ROS2 Video Streamer for LiveKit...")
@@ -49,6 +53,22 @@ class Ros2VideoStreamer(Node):
             Image,
             '/cam_usb/color/image_raw',
             lambda msg: self.on_image_frame('down_right', msg),
+            10
+        )
+
+        # Control topic to enable/disable video stream publishing to save bandwidth
+        self.sub_enable = self.create_subscription(
+            Bool,
+            '/video_stream/enable',
+            self.video_enable_callback,
+            10
+        )
+
+        # Control topic to select active camera source
+        self.sub_select = self.create_subscription(
+            String,
+            '/video_stream/select',
+            self.video_select_callback,
             10
         )
 
@@ -94,7 +114,28 @@ class Ros2VideoStreamer(Node):
         }
         self.logger.info(f"Published track '{track_name}' ({width}x{height})")
 
+    def video_enable_callback(self, msg):
+        prev = self.streaming_enabled
+        self.streaming_enabled = bool(msg.data)
+        if prev != self.streaming_enabled:
+            status = "ENABLED (WebRTC streaming active)" if self.streaming_enabled else "DISABLED (Bandwidth saver active)"
+            self.logger.info(f"Video stream publishing state updated: {status}")
+
+    def video_select_callback(self, msg):
+        cam = str(msg.data).strip()
+        if cam in ('front_camera', 'down_left', 'down_right'):
+            self.active_camera = cam
+            self.logger.info(f"Active camera source switched to: '{cam}' (bandwidth saver active)")
+
     def on_image_frame(self, track_name, msg):
+        # Skip encoding & WebRTC frame capture when streaming is disabled to save bandwidth
+        if not self.streaming_enabled:
+            return
+
+        # Single active camera filtering: drop non-selected camera frames to preserve bandwidth
+        if track_name != self.active_camera:
+            return
+
         if track_name == 'front_camera':
             self.logger.info("Front camera callback triggered!")
 
@@ -142,7 +183,16 @@ def main(args=None):
     rclpy.init(args=args)
 
     # Resolve connection info from local gateway (keeps secrets off the robot)
-    gateway_url = "http://100.120.80.121:8080"
+    # Configurable via ROS parameter or environment variable token_gateway_url
+    default_gateway = os.environ.get("token_gateway_url") or os.environ.get("GATEWAY_URL") or "http://localhost:8080"
+    try:
+        param_node = Node('streamer_param_helper')
+        param_node.declare_parameter('gateway_url', default_gateway)
+        gateway_url = param_node.get_parameter('gateway_url').get_parameter_value().string_value
+        param_node.destroy_node()
+    except Exception:
+        gateway_url = default_gateway
+
     livekit_url = "wss://prod.rtc.golain.io"
     token = ""
 
