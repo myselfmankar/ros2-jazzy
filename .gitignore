@@ -1,1 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments and local configuration
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+
+# Local databases, recordings and runtime output
 *.db
+*.sqlite
+*.sqlite3
+data/
+recordings/
+logs/
+
+# ROS / colcon build output
+build/
+install/
+log/
+
+# Editors and OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,4 @@
+# Install inside an already configured ROS 2 Jazzy environment.
+# OpenCV and cv_bridge should come from the ROS/OS packages to avoid ABI mismatches.
+livekit
+requests

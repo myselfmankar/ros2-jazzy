@@ -1,0 +1,17 @@
+# Keep local state, credentials and build artefacts out of Docker build contexts
+.git
+.github
+.venv
+venv
+__pycache__
+*.py[cod]
+.pytest_cache
+.env
+.env.*
+!.env.example
+data
+recordings
+logs
+build
+install
+log

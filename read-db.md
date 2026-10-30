@@ -1,36 +1,38 @@
-Since you don't have the `sqlite3` CLI installed on your Windows host, you can run the queries **inside the running Docker container** (which has the SQLite engine and database mounted). 
+# Inspecting the telemetry database
 
-Open your terminal (PowerShell or Command Prompt) in the `eric-robotics/ros2-jazzy` directory and run these commands:
+The MQTT telemetry consumer creates the SQLite schema and stores incoming messages in a shared Docker volume. Start the stack first:
 
-### 1. View all tables in the database
-```bash
-docker exec -it ros2-bridge sqlite3 /data/local_robot.db "SELECT name FROM sqlite_master WHERE type='table';"
-```
+    docker compose up --build -d
 
-### 2. View the latest 5 GPS coordinates
-```bash
-docker exec -it ros2-bridge sqlite3 /data/local_robot.db "SELECT * FROM telemetry_gps ORDER BY id DESC LIMIT 5;"
-```
+Open a SQLite shell in the telemetry API container using Python's SQLite driver:
 
-### 3. View the latest 5 Odometry readings (Speed, Heading, Coordinates)
-```bash
-docker exec -it ros2-bridge sqlite3 /data/local_robot.db "SELECT * FROM telemetry_odom ORDER BY id DESC LIMIT 5;"
-```
+    docker compose exec telemetry-api python - <<'PY'
+    import os, sqlite3
+    conn = sqlite3.connect(os.getenv("DB_PATH", "/data/local_robot.db"))
+    for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"):
+        print(row[0])
+    conn.close()
+    PY
 
-### 4. View the latest 5 System Logs
-```bash
-docker exec -it ros2-bridge sqlite3 /data/local_robot.db "SELECT * FROM system_logs ORDER BY id DESC LIMIT 5;"
-```
+Examples for recent records:
 
----
+    docker compose exec telemetry-api python - <<'PY'
+    import os, sqlite3
+    conn = sqlite3.connect(os.getenv("DB_PATH", "/data/local_robot.db"))
+    conn.row_factory = sqlite3.Row
+    for table in ("telemetry_gps", "telemetry_odom", "diagnostics_log", "system_logs"):
+        print("\n" + table)
+        for row in conn.execute(f"SELECT * FROM {table} ORDER BY id DESC LIMIT 5"):
+            print(dict(row))
+    conn.close()
+    PY
 
-### 5. Open Interactive Database Shell
-If you want to run queries interactively (just like a SQL console), start the interactive shell using:
-```bash
-docker exec -it ros2-bridge sqlite3 /data/local_robot.db
-```
-Inside the interactive prompt, you can run:
-*   Show tables: `.tables`
-*   Show schema of a table: `.schema telemetry_gps`
-*   Query data: `SELECT * FROM telemetry_gps LIMIT 10;`
-*   Exit the shell: `.exit`
+Read-only HTTP endpoints are also available at http://localhost:8000/docs:
+
+- GET /health
+- GET /telemetry/gps?device_id=device-test&limit=20
+- GET /telemetry/odometry?device_id=device-test&limit=20
+- GET /diagnostics?device_id=device-test&limit=20
+- GET /logs?device_id=device-test&limit=20
+
+The database uses a named Docker volume (telemetry-data) and persists across container restarts. To remove the stored data intentionally, use docker compose down -v.

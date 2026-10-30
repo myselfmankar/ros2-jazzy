@@ -1,28 +1,25 @@
+"""Manual LiveKit connectivity check. Pass a short-lived token; it is never printed."""
 import asyncio
 import sys
 from livekit import rtc
 
+
 async def main():
     if len(sys.argv) < 3:
-        print("Usage: python3 test_livekit.py <livekit_url> <token>")
-        sys.exit(1)
-        
-    url = sys.argv[1]
-    token = sys.argv[2]
-    
-    print(f"Connecting to: {url}")
-    print(f"Token (first 20 chars): {token[:20]}...")
-    
+        print("Usage: python3 test_livekit.py <livekit_url> <short_lived_token>")
+        raise SystemExit(2)
+
+    url, token = sys.argv[1], sys.argv[2]
     room = rtc.Room()
     try:
         await room.connect(url, token)
-        print("SUCCESS! Connected to LiveKit Room!")
+        print("Connected to LiveKit room successfully.")
         await room.disconnect()
-    except Exception as e:
-        print("\n--- CONNECTION ERROR DETAILS ---")
+    except Exception:
         import traceback
         traceback.print_exc()
-        print("---------------------------------")
+        raise SystemExit(1)
+
 
 if __name__ == "__main__":
     asyncio.run(main())
