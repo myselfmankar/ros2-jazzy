@@ -1,37 +1,130 @@
-version: '3.8'
-
 services:
+  # ROS 2 DDS discovery uses multicast. Host networking avoids unreliable
+  # multicast discovery across Docker bridge networks.
   mqtt-broker:
-    image: eclipse-mosquitto:latest
-    container_name: mqtt-broker
-    ports:
-      - "1883:1883"
+    image: eclipse-mosquitto:2
+    container_name: ros2-mqtt-broker
+    network_mode: host
     volumes:
-      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
       - mosquitto-data:/mosquitto/data
       - mosquitto-log:/mosquitto/log
+    healthcheck:
+      test: ["CMD-SHELL", "mosquitto_pub -h 127.0.0.1 -p 1883 -t healthcheck -m ok"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
     restart: unless-stopped
 
   ros2-sim:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: ros2-sim
-    command: ros2 run ros2_mqtt_bridge mock_robot_sim
+    network_mode: host
+    command: ["ros2", "run", "ros2_mqtt_bridge", "mock_robot_sim"]
+    environment:
+      ROS_DOMAIN_ID: "42"
+      ROS_LOCALHOST_ONLY: "0"
+      RMW_IMPLEMENTATION: rmw_fastrtps_cpp
+      FASTDDS_BUILTIN_TRANSPORTS: UDPv4
     depends_on:
-      - mqtt-broker
-    volumes:
-      - ./data:/data
+      mqtt-broker:
+        condition: service_healthy
     restart: unless-stopped
 
   ros2-bridge:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: ros2-bridge
-    command: ros2 run ros2_mqtt_bridge mqtt_bridge_node --ros-args -p mqtt_host:=mqtt-broker -p db_path:=/data/local_robot.db
+    network_mode: host
+    command: ["ros2", "run", "ros2_mqtt_bridge", "mqtt_bridge_node"]
+    environment:
+      ROS_DOMAIN_ID: "42"
+      ROS_LOCALHOST_ONLY: "0"
+      RMW_IMPLEMENTATION: rmw_fastrtps_cpp
+      FASTDDS_BUILTIN_TRANSPORTS: UDPv4
+      MQTT_HOST: 127.0.0.1
+      MQTT_PORT: "1883"
+      ROBOT_DEVICE_ID: ${ROBOT_DEVICE_ID:-device-test}
+      MQTT_TOPIC_ROOT: omega
     depends_on:
-      - mqtt-broker
-    volumes:
-      - ./data:/data
+      mqtt-broker:
+        condition: service_healthy
     restart: unless-stopped
+
+  telemetry-consumer:
+    build:
+      context: .
+      dockerfile: telemetry_backend/Dockerfile
+    container_name: telemetry-consumer
+    network_mode: host
+    command: ["python", "-m", "telemetry_backend.mqtt_consumer"]
+    environment:
+      MQTT_HOST: 127.0.0.1
+      MQTT_PORT: "1883"
+      MQTT_TOPIC_ROOT: omega
+      DB_PATH: /data/local_robot.db
+    volumes:
+      - telemetry-data:/data
+    depends_on:
+      mqtt-broker:
+        condition: service_healthy
+    restart: unless-stopped
+
+  telemetry-api:
+    build:
+      context: .
+      dockerfile: telemetry_backend/Dockerfile
+    container_name: telemetry-api
+    network_mode: host
+    command: ["uvicorn", "telemetry_backend.api:app", "--host", "127.0.0.1", "--port", "8000"]
+    environment:
+      DB_PATH: /data/local_robot.db
+    volumes:
+      - telemetry-data:/data
+    depends_on:
+      telemetry-consumer:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  # Optional camera replay + LiveKit publisher. Set bag paths and credentials
+  # in your shell/.env before starting with: docker compose --profile video up --build.
+  video-demo:
+    profiles: ["video"]
+    build:
+      context: .
+      dockerfile: Dockerfile.video
+    container_name: ros2-video-demo
+    command:
+      - "--front-bag"
+      - ${FRONT_BAG:-/recordings/front_cam.mcap}
+      - "--left-bag"
+      - ${LEFT_BAG:-/recordings/left_cam.mcap}
+      - "--right-bag"
+      - ${RIGHT_BAG:-/recordings/right_cam.mcap}
+    environment:
+      ROS_DOMAIN_ID: "43"
+      LIVEKIT_URL: ${LIVEKIT_URL:-}
+      LIVEKIT_TOKEN: ${LIVEKIT_TOKEN:-}
+      GATEWAY_URL: ${GATEWAY_URL:-}
+      FRONT_CAMERA_TOPIC: ${FRONT_CAMERA_TOPIC:-/astra2_cam/color/image_raw}
+      LEFT_CAMERA_TOPIC: ${LEFT_CAMERA_TOPIC:-/cam_eth/color/image_raw}
+      RIGHT_CAMERA_TOPIC: ${RIGHT_CAMERA_TOPIC:-/cam_usb/color/image_raw}
+      ACTIVE_CAMERA: ${ACTIVE_CAMERA:-front_camera}
+    volumes:
+      - ${ROS2_RECORDINGS_DIR:-./recordings}:/recordings:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: "no"
 
 volumes:
   mosquitto-data:
   mosquitto-log:
+  telemetry-data:
